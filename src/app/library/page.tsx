@@ -1,10 +1,18 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import {
+  LibrarySidebar,
+  movieGridClassForCount,
+  FOLDER_GRID_CLASS,
+} from "@/components/library-sidebar";
 import { MediaCard } from "@/components/media-card";
-import { VideoSort } from "@/components/video-sort";
 import { Navbar } from "@/components/navbar";
+import { VideoSort } from "@/components/video-sort";
 import { isAdmin } from "@/lib/auth";
-import { getUnlockedFolders, needsFolderUnlock } from "@/lib/folder-lock";
+import {
+  getUnlockedFolders,
+  filterSidebarFolders,
+} from "@/lib/folder-lock";
 import { requireAuth, requireCategoryAccess } from "@/lib/guards";
 import {
   breadcrumbParts,
@@ -29,34 +37,21 @@ type Props = {
   searchParams: Promise<{ cat?: string; sort?: string; q?: string }>;
 };
 
-function FolderIcon({ locked }: { locked?: boolean }) {
+function FolderGridIcon() {
   return (
-    <div className="relative">
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        viewBox="0 0 24 24"
-        fill="currentColor"
-        className="size-10 opacity-50"
-        aria-hidden
-      >
-        <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.5a3 3 0 013-3h5.25a3 3 0 013 3v.75H1.5v-.75z" />
-      </svg>
-      {locked ? (
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 20 20"
-          fill="currentColor"
-          className="size-4 absolute -bottom-0.5 -right-0.5 text-warning"
-          aria-label="Locked"
-        >
-          <path
-            fillRule="evenodd"
-            d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z"
-            clipRule="evenodd"
-          />
-        </svg>
-      ) : null}
-    </div>
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      className="size-8 opacity-45"
+      aria-hidden
+    >
+      <path
+        fillRule="evenodd"
+        d="M4.5 3.75a1.5 1.5 0 00-1.5 1.5v14.25a1.5 1.5 0 001.5 1.5h15a1.5 1.5 0 001.5-1.5V5.25a1.5 1.5 0 00-1.5-1.5h-15zM9 6.75a.75.75 0 01.75-.75h.75v3h-.75A.75.75 0 019 9.75v-3zm4.5 0A.75.75 0 0114.25 6h.75v3h-.75a.75.75 0 01-.75-.75v-3zm-4.5 6.75a.75.75 0 01.75-.75h.75v3h-.75A.75.75 0 019 16.5v-3zm4.5 0a.75.75 0 01.75-.75h.75v3h-.75a.75.75 0 01-.75-.75v-3z"
+        clipRule="evenodd"
+      />
+    </svg>
   );
 }
 
@@ -76,7 +71,7 @@ function VideoGrid({
   getKey: (item: VideoItem) => string;
 }) {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 lg:gap-4">
+    <div className={movieGridClassForCount(items.length)}>
       {items.map((video, index) => {
         const meta = getVideoMeta(video.name, categoryId);
         return (
@@ -114,7 +109,10 @@ export default async function LibraryPage({ searchParams }: Props) {
 
   const unlocked = await getUnlockedFolders();
   const topLevel = listTopLevel();
-  const subfolders = isSearch ? [] : listSubfolders(activeCat);
+  const subfolders = isSearch
+    ? []
+    : filterSidebarFolders(listSubfolders(activeCat));
+  const sidebarTopLevel = filterSidebarFolders(topLevel);
 
   let videos: VideoItem[] = [];
   let searchResults: SearchResult[] = [];
@@ -144,88 +142,52 @@ export default async function LibraryPage({ searchParams }: Props) {
 
   return (
     <div className="min-h-dvh flex flex-col bg-base-100">
-      <Suspense fallback={<div className="min-h-14 bg-base-200 border-b border-base-300" />}>
+      <Suspense fallback={<div className="min-h-14 glass-panel border-b animate-pulse" />}>
         <Navbar activeCat={activeCat} isAdmin={admin} />
       </Suspense>
 
       <div className="flex flex-1 min-h-0 w-full">
-        <aside className="hidden md:flex flex-col w-56 lg:w-64 shrink-0 border-r border-base-300 bg-base-200/60 overflow-y-auto sticky top-14 h-[calc(100dvh-3.5rem-var(--safe-top))]">
-          <p className="text-[11px] uppercase tracking-wider opacity-40 px-5 pt-4 pb-2 font-medium">
-            Library
-          </p>
-          <ul className="menu menu-sm px-3 pb-4 gap-0.5 flex-1">
-            <li>
-              <Link
-                href="/library"
-                className={!activeCat && !isSearch ? "active" : ""}
-              >
-                Home
-              </Link>
-            </li>
-            {topLevel.map((g) => {
-              const top = g.id.split("/")[0];
-              const isActive =
-                !isSearch &&
-                (activeCat === top || activeCat.startsWith(`${top}/`));
-              const needsUnlock = needsFolderUnlock(top, unlocked);
-              const href = needsUnlock
-                ? `/folder-unlock?cat=${encodeURIComponent(top)}`
-                : `/library?cat=${encodeURIComponent(top)}`;
-              return (
-                <li key={g.id}>
-                  <Link href={href} className={isActive ? "active" : ""}>
-                    <span className="truncate">{g.label}</span>
-                    {g.locked ? (
-                      <span className="text-warning text-xs">🔒</span>
-                    ) : null}
-                    <span className="badge badge-xs">{g.videoCount}</span>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </aside>
+        <LibrarySidebar
+          topLevel={sidebarTopLevel}
+          activeCat={activeCat}
+          isSearch={isSearch}
+        />
 
         <main
           className="flex-1 min-w-0 overflow-y-auto scroll-smooth"
           data-library-scroll
         >
-          <div className="md:hidden overflow-x-auto border-b border-base-300 bg-base-200/80 sticky top-14 z-10 safe-x">
+          <div className="md:hidden overflow-x-auto border-b glass-panel sticky top-14 z-10 safe-x">
             <div className="flex gap-2 py-3 w-max">
               <Link
                 href="/library"
-                className={`btn btn-sm ${!activeCat && !isSearch ? "btn-primary" : "btn-ghost"}`}
+                className={`btn btn-sm rounded-full ${!activeCat && !isSearch ? "bg-white/15 text-white border-0" : "btn-ghost border-0"}`}
               >
-                Library
+                Home
               </Link>
-              {topLevel.map((g) => {
+              {sidebarTopLevel.map((g) => {
                 const top = g.id.split("/")[0];
-                const needsUnlock = needsFolderUnlock(top, unlocked);
-                const href = needsUnlock
-                  ? `/folder-unlock?cat=${encodeURIComponent(top)}`
-                  : `/library?cat=${encodeURIComponent(top)}`;
+                const active =
+                  !isSearch &&
+                  (activeCat === top || activeCat.startsWith(`${top}/`));
                 return (
                   <Link
                     key={g.id}
-                    href={href}
-                    className={`btn btn-sm ${
-                      !isSearch &&
-                      (activeCat === top || activeCat.startsWith(`${top}/`))
-                        ? "btn-primary"
-                        : "btn-ghost"
+                    href={`/library?cat=${encodeURIComponent(top)}`}
+                    className={`btn btn-sm rounded-full ${
+                      active ? "bg-white/15 text-white border-0" : "btn-ghost border-0"
                     }`}
                   >
                     {g.label}
-                    {g.locked ? " 🔒" : ""}
                   </Link>
                 );
               })}
             </div>
           </div>
 
-          <div className="p-4 lg:p-6 pb-[max(2rem,var(--safe-bottom))] w-full">
-            {!isSearch ? (
-              <div className="text-sm breadcrumbs mb-4 overflow-x-auto max-w-full">
+          <div className="p-4 lg:p-10 pb-[max(2rem,var(--safe-bottom))] w-full">
+            {!isSearch && activeCat ? (
+              <div className="text-sm breadcrumbs mb-5 overflow-x-auto max-w-full text-base-content/45">
                 <ul className="flex-nowrap whitespace-nowrap">
                   <li>
                     <Link href="/library">Library</Link>
@@ -241,11 +203,11 @@ export default async function LibraryPage({ searchParams }: Props) {
               </div>
             ) : null}
 
-            <div className="flex items-center justify-between gap-3 mb-4 min-w-0">
-              <h2 className="text-lg font-semibold min-w-0 truncate">
+            <div className="flex items-end justify-between gap-3 mb-6 min-w-0">
+              <h2 className="text-2xl lg:text-3xl font-semibold min-w-0 truncate tracking-tight">
                 {currentLabel}
                 {resultCount > 0 ? (
-                  <span className="badge badge-neutral ml-2">
+                  <span className="badge badge-neutral ml-3 bg-white/10 border-0 text-sm font-normal text-base-content/60">
                     {resultCount}
                   </span>
                 ) : null}
@@ -262,36 +224,29 @@ export default async function LibraryPage({ searchParams }: Props) {
             </div>
 
             {!isSearch && subfolders.length > 0 ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 lg:gap-4 mb-6">
-                {subfolders.map((folder) => {
-                  const needsUnlock = needsFolderUnlock(folder.id, unlocked);
-                  const href = needsUnlock
-                    ? `/folder-unlock?cat=${encodeURIComponent(folder.id)}`
-                    : `/library?cat=${encodeURIComponent(folder.id)}`;
-                  return (
+              <div className={`${FOLDER_GRID_CLASS} mb-8`}>
+                {subfolders.map((folder) => (
                     <Link
                       key={folder.id}
-                      href={href}
+                      href={`/library?cat=${encodeURIComponent(folder.id)}`}
                       prefetch={false}
-                      className="card card-border bg-base-200 hover:bg-base-300 active:bg-base-300 transition-colors block touch-manipulation"
+                      className="glass-card p-4 flex flex-col items-center text-center gap-2 hover:border-white/20 hover:bg-white/[0.06] transition-all duration-200 block touch-manipulation min-h-[8.5rem]"
                     >
-                      <div className="card-body p-4 items-center text-center gap-2">
-                        <FolderIcon locked={folder.locked} />
-                        <h3 className="font-medium line-clamp-2">
-                          {folder.label}
-                        </h3>
-                        <span className="badge badge-neutral badge-sm">
-                          {folder.videoCount} videos
-                        </span>
-                      </div>
+                      <FolderGridIcon />
+                      <h3 className="font-semibold line-clamp-2 text-base leading-snug w-full">
+                        {folder.label}
+                      </h3>
+                      <span className="text-sm text-base-content/50">
+                        {folder.videoCount}{" "}
+                        {folder.videoCount === 1 ? "video" : "videos"}
+                      </span>
                     </Link>
-                  );
-                })}
+                  ))}
               </div>
             ) : null}
 
             {isSearch && searchResults.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 lg:gap-4">
+              <div className={movieGridClassForCount(searchResults.length)}>
                 {searchResults.map((video, index) => {
                   const catQ = `cat=${encodeURIComponent(video.categoryId)}`;
                   const meta = getVideoMeta(video.name, video.categoryId);
@@ -333,7 +288,7 @@ export default async function LibraryPage({ searchParams }: Props) {
             ) : null}
 
             {resultCount === 0 && subfolders.length === 0 ? (
-              <div className="alert">
+              <div className="alert glass-card border-0 text-base-content/70">
                 <span>
                   {isSearch
                     ? `No videos matching "${query.trim()}"`

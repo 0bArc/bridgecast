@@ -136,7 +136,7 @@ export function SearchBar({ activeCat = "" }: Props) {
   return (
     <div ref={rootRef} className="relative flex-1 min-w-0 max-w-3xl">
       <form onSubmit={onSubmit}>
-        <label className="input input-bordered input-sm flex items-center gap-2 w-full bg-base-100 shadow-none">
+        <label className="glass-input flex items-center gap-2 w-full h-9 px-3 rounded-lg shadow-none">
           <svg
             xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 20 20"
@@ -197,7 +197,7 @@ export function SearchBar({ activeCat = "" }: Props) {
         <div
           id={listId}
           role="listbox"
-          className="absolute left-0 right-0 top-[calc(100%+0.35rem)] z-50 rounded-xl border border-base-content/10 bg-base-300 shadow-2xl overflow-hidden"
+          className="absolute left-0 right-0 top-[calc(100%+0.35rem)] z-50 rounded-xl glass-card overflow-hidden"
         >
           {loading && results.length === 0 ? (
             <div className="flex items-center justify-center gap-2 px-4 py-6 text-sm opacity-60">
@@ -220,7 +220,7 @@ export function SearchBar({ activeCat = "" }: Props) {
                     href={hit.href}
                     prefetch={false}
                     role="option"
-                    className="flex items-center gap-3 px-3 py-2.5 hover:bg-base-100 active:bg-base-100 transition-colors"
+                    className="flex items-center gap-3 px-3 py-2.5 hover:bg-white/5 active:bg-white/5 transition-colors"
                     onClick={() => setOpen(false)}
                   >
                     <div className="relative size-14 shrink-0 rounded-md overflow-hidden bg-base-100">

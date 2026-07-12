@@ -113,7 +113,7 @@ export function MediaCard({
   return (
     <ContextMenu
       items={menuItems}
-      className="relative h-full"
+      className="relative h-full group/card"
       onReady={(openAt) => {
         openMenuRef.current = openAt;
       }}
@@ -121,14 +121,17 @@ export function MediaCard({
       <Link
         href={href}
         prefetch={false}
-        className="card card-border bg-base-200 hover:bg-base-300 active:bg-base-300 transition-colors overflow-hidden block touch-manipulation h-full"
+        className="block touch-manipulation h-full w-full outline-none"
       >
-        <div className="relative">
-          <VideoPreview posterSrc={poster} title={title} eager={eager} />
+        <div className="relative overflow-hidden rounded-lg ring-1 ring-white/10 transition duration-300 group-hover/card:ring-white/25 group-hover/card:shadow-xl group-hover/card:shadow-black/50 group-focus-visible/card:ring-white/30">
+          <div className="transition duration-300 group-hover/card:scale-[1.03]">
+            <VideoPreview posterSrc={poster} title={title} eager={eager} />
+          </div>
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent pointer-events-none opacity-80 group-hover/card:opacity-100 transition-opacity" />
           {isAdmin ? (
             <button
               type="button"
-              className="btn btn-ghost btn-xs btn-circle absolute top-2 right-2 z-10 bg-black/50 text-white border-0 min-h-8 min-w-8"
+              className="btn btn-ghost btn-xs btn-circle absolute top-2 right-2 z-10 bg-black/40 text-white border-0 min-h-8 min-w-8 opacity-0 group-hover/card:opacity-100 group-focus-within/card:opacity-100"
               aria-label="Media options"
               onClick={(e) => {
                 e.preventDefault();
@@ -141,17 +144,20 @@ export function MediaCard({
             </button>
           ) : null}
         </div>
-        <div className="card-body p-4 gap-1">
-          <h3 className="card-title text-base line-clamp-2 leading-snug">
+
+        <div className="pt-3 px-0.5 space-y-1.5">
+          <h3 className="text-lg lg:text-xl font-semibold leading-snug line-clamp-2 text-base-content/95">
             {title}
           </h3>
           {metaParts.length > 0 ? (
-            <p className="text-xs opacity-50">{metaParts.join(" · ")}</p>
+            <p className="text-sm text-base-content/55">{metaParts.join(" · ")}</p>
           ) : null}
           {categoryLabel ? (
-            <p className="text-xs opacity-50 truncate">{categoryLabel}</p>
+            <p className="text-sm text-base-content/45 truncate">{categoryLabel}</p>
           ) : null}
-          <p className="text-sm opacity-60">{sizeLabel}</p>
+          {isAdmin ? (
+            <p className="text-xs text-base-content/40 tabular-nums">{sizeLabel}</p>
+          ) : null}
         </div>
       </Link>
       {isAdmin ? (

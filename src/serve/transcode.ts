@@ -256,6 +256,9 @@ function cleanupStaleParts(): void {
     const full = path.join(TRANSCODE_DIR, name);
     if (activeOutputs.has(full)) continue;
 
+    // Adopted on demand via tryAdoptPartFile — only remove timestamp temps.
+    if (/^[a-f0-9]{20}\.part\.mp4$/.test(name)) continue;
+
     if (name.includes(".part.mp4")) {
       safeUnlink(full);
       continue;
@@ -265,6 +268,29 @@ function cleanupStaleParts(): void {
       removeHlsDir(full);
     }
   }
+}
+
+/** Link valid on-disk HLS dirs into manifest after crash/restart before orphan cleanup. */
+function adoptOrphanHlsCaches(): void {
+  const manifest = readManifest();
+  let changed = false;
+
+  for (const [key, entry] of Object.entries(manifest)) {
+    if (entry.hlsDir || entry.version !== TRANSCODE_VERSION) continue;
+    const hash = entry.file.replace(/\.mp4$/i, "");
+    if (!/^[a-f0-9]{20}$/.test(hash)) continue;
+
+    const hlsDir = path.join(TRANSCODE_DIR, hash);
+    if (!hlsCacheValid(hlsDir)) continue;
+
+    entry.hlsDir = hash;
+    entry.hlsVersion = HLS_CACHE_VERSION;
+    entry.hlsLastUsedAt = Math.floor(Date.now() / 1000);
+    manifest[key] = entry;
+    changed = true;
+  }
+
+  if (changed) writeManifest(manifest);
 }
 
 function cleanupInvalidOrphans(): void {
@@ -288,7 +314,7 @@ function cleanupInvalidOrphans(): void {
       if (name.endsWith(".part.mp4") || /\.part\.\d+$/.test(name)) {
         if (fs.existsSync(full) && fs.statSync(full).isDirectory()) {
           removeHlsDir(full);
-        } else {
+        } else if (!/^[a-f0-9]{20}\.part\.mp4$/.test(name)) {
           safeUnlink(full);
         }
         continue;
@@ -302,6 +328,7 @@ function cleanupInvalidOrphans(): void {
       }
 
       if (isDir) {
+        if (/^[a-f0-9]{20}$/.test(name) && hlsCacheValid(full)) continue;
         removeHlsDir(full);
         continue;
       }
@@ -322,6 +349,7 @@ let transcodeStartupDone = false;
 export function ensureTranscodeStartup(): void {
   if (transcodeStartupDone) return;
   transcodeStartupDone = true;
+  adoptOrphanHlsCaches();
   cleanupStaleParts();
   cleanupInvalidOrphans();
 }
@@ -384,22 +412,32 @@ export function clearManifestHlsEntry(key: string): void {
   writeManifest(manifest);
 }
 
-/** Delete HLS dirs idle longer than HLS_IDLE_SECONDS. Survives server restarts. */
+export function getManifestEntry(filePath: string): ManifestEntry | undefined {
+  return readManifest()[sourceKey(filePath)];
+}
+
+export function clearManifestHlsForFile(filePath: string): void {
+  clearManifestHlsEntry(sourceKey(filePath));
+}
+
+/** Drop HLS when its MP4 cache is gone — same lifetime as MP4. */
 export function evictExpiredHlsCaches(
   hasViewers: (key: string) => boolean,
   isPreparing: (key: string) => boolean
 ): number {
   const manifest = readManifest();
-  const now = Math.floor(Date.now() / 1000);
   let removed = 0;
 
   for (const [key, entry] of Object.entries(manifest)) {
     if (!entry.hlsDir) continue;
     if (hasViewers(key) || isPreparing(key)) continue;
 
-    const lastUsed =
-      entry.hlsLastUsedAt ?? Math.floor(entry.completedAt / 1000);
-    if (now - lastUsed < HLS_IDLE_SECONDS) continue;
+    const mp4Path = path.join(TRANSCODE_DIR, entry.file);
+    const mp4Ok =
+      entry.version === TRANSCODE_VERSION &&
+      fs.existsSync(mp4Path) &&
+      fs.statSync(mp4Path).size > 0;
+    if (mp4Ok) continue;
 
     const hlsDir = path.join(TRANSCODE_DIR, entry.hlsDir);
     removeHlsDir(hlsDir);

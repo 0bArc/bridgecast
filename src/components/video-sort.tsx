@@ -24,7 +24,7 @@ export function VideoSort({ cat, sort, query }: Props) {
     <label className="flex items-center gap-2 shrink-0">
       <span className="text-xs opacity-60 hidden sm:inline">Sort</span>
       <select
-        className="select select-bordered select-sm min-h-9"
+        className="select select-sm min-h-9 glass-input border-0 rounded-lg"
         value={sort}
         onChange={(e) => {
           const params = new URLSearchParams(searchParams.toString());

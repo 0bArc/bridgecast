@@ -35,24 +35,24 @@ export default function LoginForm() {
   }
 
   return (
-    <main className="min-h-dvh flex items-center justify-center p-4 safe-x safe-top safe-bottom">
-      <div className="card card-border bg-base-200 w-full max-w-sm sm:max-w-md shadow-xl">
-        <div className="card-body">
-          <h1 className="card-title text-2xl">{SITE_NAME}</h1>
-          <p className="text-sm opacity-70">{SITE_TAGLINE}</p>
-          <p className="text-sm opacity-60">
+    <main className="min-h-dvh flex items-center justify-center p-4 safe-x safe-top safe-bottom bg-base-100">
+      <div className="glass-card w-full max-w-sm sm:max-w-md">
+        <div className="p-6 sm:p-8 flex flex-col gap-1">
+          <h1 className="text-2xl font-semibold tracking-tight">{SITE_NAME}</h1>
+          <p className="text-sm text-base-content/55">{SITE_TAGLINE}</p>
+          <p className="text-sm text-base-content/45 pb-2">
             Guest password for viewers, or admin password from your{" "}
-            <code className="text-xs">.env</code>.
+            <code className="text-xs bg-white/10 px-1.5 py-0.5 rounded">.env</code>.
           </p>
 
           <form onSubmit={onSubmit} className="flex flex-col gap-4 mt-2">
             <label className="form-control w-full">
-              <div className="label">
-                <span className="label-text">Password</span>
+              <div className="label py-1">
+                <span className="label-text text-base-content/60">Password</span>
               </div>
               <input
                 type="password"
-                className="input input-bordered w-full"
+                className="input w-full glass-input border-0 h-11"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="current-password"
@@ -68,7 +68,7 @@ export default function LoginForm() {
 
             <button
               type="submit"
-              className={`btn btn-primary w-full ${loading ? "btn-disabled" : ""}`}
+              className={`btn w-full bg-white/90 text-black border-0 hover:bg-white ${loading ? "btn-disabled" : ""}`}
             >
               {loading ? <span className="loading loading-spinner" /> : "Sign in"}
             </button>

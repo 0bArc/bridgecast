@@ -70,7 +70,7 @@ export default async function WatchPage({ params, searchParams }: Props) {
         </div>
 
         <div className="safe-x px-4 pb-4 shrink-0">
-          <Link href={`/library?${q}`} className="btn btn-ghost btn-sm">
+          <Link href={`/library?${q}`} className="btn btn-ghost btn-sm hover:bg-white/10 border-0">
             ← Back to library
           </Link>
         </div>

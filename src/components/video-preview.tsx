@@ -36,7 +36,7 @@ export function VideoPreview({ posterSrc, title, eager = false }: Props) {
           io.disconnect();
         }
       },
-      { root: scrollRoot, rootMargin: "80px", threshold: 0.01 }
+      { root: scrollRoot, rootMargin: "120px", threshold: 0.01 }
     );
 
     io.observe(el);
@@ -89,17 +89,17 @@ export function VideoPreview({ posterSrc, title, eager = false }: Props) {
       ref={rootRef}
       className="relative aspect-video bg-base-300 overflow-hidden pointer-events-none select-none"
     >
-      <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-t from-black/50 via-transparent to-black/10">
+      <div className="absolute inset-0 flex items-center justify-center">
         <div
-          className={`btn btn-circle btn-primary btn-sm shadow-lg transition-opacity ${
-            posterOk ? "opacity-80" : "opacity-100"
+          className={`flex size-12 items-center justify-center rounded-full bg-white/90 text-black shadow-lg transition-all duration-300 ${
+            posterOk ? "opacity-0 scale-90 group-hover/card:opacity-100 group-hover/card:scale-100" : "opacity-100 scale-100"
           }`}
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 24 24"
             fill="currentColor"
-            className="size-4"
+            className="size-5 ml-0.5"
             aria-hidden
           >
             <path
@@ -118,7 +118,9 @@ export function VideoPreview({ posterSrc, title, eager = false }: Props) {
           decoding="async"
           className="absolute inset-0 w-full h-full object-cover pointer-events-none"
         />
-      ) : null}
+      ) : (
+        <div className="absolute inset-0 bg-base-300 animate-pulse" />
+      )}
 
       <span className="sr-only">{title}</span>
     </div>

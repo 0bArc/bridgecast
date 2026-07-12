@@ -15,7 +15,7 @@ function NavbarSearch({ activeCat }: { activeCat: string }) {
   return (
     <Suspense
       fallback={
-        <div className="flex-1 min-w-0 max-w-3xl h-8 rounded-btn bg-base-100 border border-base-content/20 animate-pulse" />
+        <div className="flex-1 min-w-0 max-w-3xl h-9 rounded-lg glass-input animate-pulse" />
       }
     >
       <SearchBar activeCat={activeCat} />
@@ -28,11 +28,11 @@ export function Navbar({ activeCat = "", isAdmin = false }: Props) {
   const onLibrary = pathname.startsWith("/library");
 
   return (
-    <header className="sticky top-0 z-30 shrink-0 border-b border-base-300 bg-base-200 safe-top">
-      <div className="flex items-center gap-3 min-h-14 px-4 lg:px-6 safe-x">
+    <header className="sticky top-0 z-30 shrink-0 border-b glass-panel safe-top">
+      <div className="flex items-center gap-3 min-h-14 px-4 lg:px-8 safe-x">
         <Link
           href="/library"
-          className="btn btn-ghost shadow-none text-lg font-bold tracking-tight px-2 shrink-0"
+          className="btn btn-ghost shadow-none text-lg font-semibold tracking-tight px-2 shrink-0 hover:bg-white/5"
         >
           {SITE_NAME}
         </Link>
@@ -43,7 +43,7 @@ export function Navbar({ activeCat = "", isAdmin = false }: Props) {
           {isAdmin ? (
             <Link
               href="/settings"
-              className="btn btn-ghost btn-sm shadow-none font-normal"
+              className="btn btn-ghost btn-sm shadow-none font-normal hover:bg-white/5"
             >
               Settings
             </Link>
@@ -51,7 +51,7 @@ export function Navbar({ activeCat = "", isAdmin = false }: Props) {
           <form action="/api/auth/logout" method="POST">
             <button
               type="submit"
-              className="btn btn-ghost btn-sm shadow-none font-normal"
+              className="btn btn-ghost btn-sm shadow-none font-normal hover:bg-white/5"
             >
               Logout
             </button>

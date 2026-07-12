@@ -16,7 +16,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#1a1a1a",
+  themeColor: "#000000",
 };
 
 export default function RootLayout({
@@ -25,8 +25,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" data-theme="dark">
-      <body className="min-h-dvh">{children}</body>
+    <html lang="en" data-theme="bridgecast">
+      <body className="min-h-dvh bg-base-100 text-base-content antialiased">
+        {children}
+      </body>
     </html>
   );
 }

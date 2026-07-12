@@ -6,12 +6,16 @@ import {
   generateHlsFromMp4,
   hlsCacheValid,
   readHlsAssetText,
+  removeHlsDir,
   rewriteHlsPlaylist,
 } from "@/serve/hls";
 import {
+  clearManifestHlsForFile,
   evictExpiredHlsCaches,
   findCachedMp4,
+  getManifestEntry,
   getTranscodeDir,
+  HLS_CACHE_VERSION,
   isIpadNative,
   needsRemux,
   touchManifestHlsAccess,
@@ -140,14 +144,34 @@ class HlsManager {
     if (!needsRemux(filePath) || isIpadNative(filePath)) return null;
 
     const expected = this.hlsDirPath(filePath);
-    if (hlsCacheValid(expected)) return expected;
+    const dirName = path.basename(expected);
+    const entry = getManifestEntry(filePath);
+
+    if (
+      entry?.hlsVersion !== undefined &&
+      entry.hlsVersion !== HLS_CACHE_VERSION
+    ) {
+      removeHlsDir(expected);
+      clearManifestHlsForFile(filePath);
+    } else if (hlsCacheValid(expected)) {
+      if (!entry?.hlsDir) {
+        const mp4 = findCachedMp4(filePath);
+        if (mp4) {
+          updateManifestHlsEntry(filePath, path.basename(mp4), dirName);
+        }
+      }
+      return expected;
+    }
 
     const mp4 = findCachedMp4(filePath);
     if (!mp4) return null;
 
-    const manifestDir = path.basename(expected);
-    updateManifestHlsEntry(filePath, path.basename(mp4), manifestDir);
-    return hlsCacheValid(expected) ? expected : null;
+    if (hlsCacheValid(expected)) {
+      updateManifestHlsEntry(filePath, path.basename(mp4), dirName);
+      return expected;
+    }
+
+    return null;
   }
 
   isReady(filePath: string): boolean {

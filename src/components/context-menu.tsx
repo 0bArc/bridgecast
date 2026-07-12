@@ -125,7 +125,7 @@ export function ContextMenu({ items, children, className = "", onReady }: Props)
             <ul
               ref={menuRef}
               role="menu"
-              className="menu menu-sm bg-base-300 border border-base-content/10 rounded-box shadow-xl fixed z-[100] min-w-[11rem] p-1"
+              className="menu menu-sm glass-card fixed z-[100] min-w-[11rem] p-1 border-0"
               style={{ left: pos.x, top: pos.y }}
             >
               {items.map((item) => (

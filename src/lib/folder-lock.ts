@@ -21,6 +21,23 @@ export function needsFolderUnlock(
   return lock ? !unlocked.includes(lock.folderId) : false;
 }
 
+/** Hide locked folders until the user has unlocked them. */
+export function filterVisibleFolders<T extends { id: string; locked: boolean }>(
+  folders: T[],
+  unlocked: string[]
+): T[] {
+  return folders.filter(
+    (folder) => !folder.locked || !needsFolderUnlock(folder.id, unlocked)
+  );
+}
+
+/** Sidebar never lists password-locked folders — use home or unlock flow. */
+export function filterSidebarFolders<T extends { id: string; locked: boolean }>(
+  folders: T[]
+): T[] {
+  return folders.filter((folder) => !folder.locked);
+}
+
 export function getLockForCategory(
   categoryId: string
 ): { folderId: string; passwordHash: string } | null {

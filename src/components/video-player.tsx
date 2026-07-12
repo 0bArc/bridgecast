@@ -214,83 +214,91 @@ export function VideoPlayer({
 
             const mp4Ready = Boolean(data.ready);
             const hlsReady = Boolean(data.hlsReady);
+            const iosWaitingHls =
+              isIos && !!hlsSrc && mp4Ready && !hlsReady;
+
             setHlsReadyState(hlsReady);
-            setPackagingHls(Boolean(isIos && !!hlsSrc && mp4Ready && !hlsReady));
+            setPackagingHls(iosWaitingHls);
 
             if (mp4Ready) {
               setVideoSrc(isIos && hlsSrc && hlsReady ? hlsSrc : src);
               setPreparing(false);
               setPrepareProgress(100);
               setError("");
-              return;
-            }
 
-            if (data.error && !data.preparing) {
-              setPreparing(false);
-              setError(data.error);
-              return;
-            }
-
-            setPreparing(true);
-            setError("");
-
-            if (typeof data.progress === "number") {
-              setPrepareProgress(data.progress);
-              if (data.progress > 0 && !transcodeStartedAtRef.current) {
-                transcodeStartedAtRef.current = Date.now();
+              if (!iosWaitingHls) {
+                return;
               }
-              if (data.progress !== lastProgress) {
-                lastProgress = data.progress;
-                lastProgressAt = Date.now();
+
+              delayMs = 2500;
+            } else {
+              if (data.error && !data.preparing) {
+                setPreparing(false);
+                setError(data.error);
+                return;
               }
-            }
 
-            if (typeof data.sourceDuration === "number") {
-              setSourceDuration(data.sourceDuration);
-            }
+              setPreparing(true);
+              setError("");
 
-            if (typeof data.etaSeconds === "number") {
-              setEtaSeconds(data.etaSeconds);
-            } else if (
-              data.preparing &&
-              transcodeStartedAtRef.current &&
-              typeof data.progress === "number" &&
-              data.progress > 0
-            ) {
-              const elapsed =
-                (Date.now() - transcodeStartedAtRef.current) / 1000;
-              setEtaSeconds(
-                Math.round((elapsed / data.progress) * (100 - data.progress))
+              if (typeof data.progress === "number") {
+                setPrepareProgress(data.progress);
+                if (data.progress > 0 && !transcodeStartedAtRef.current) {
+                  transcodeStartedAtRef.current = Date.now();
+                }
+                if (data.progress !== lastProgress) {
+                  lastProgress = data.progress;
+                  lastProgressAt = Date.now();
+                }
+              }
+
+              if (typeof data.sourceDuration === "number") {
+                setSourceDuration(data.sourceDuration);
+              }
+
+              if (typeof data.etaSeconds === "number") {
+                setEtaSeconds(data.etaSeconds);
+              } else if (
+                data.preparing &&
+                transcodeStartedAtRef.current &&
+                typeof data.progress === "number" &&
+                data.progress > 0
+              ) {
+                const elapsed =
+                  (Date.now() - transcodeStartedAtRef.current) / 1000;
+                setEtaSeconds(
+                  Math.round((elapsed / data.progress) * (100 - data.progress))
+                );
+              } else if (!data.preparing) {
+                setEtaSeconds(null);
+                transcodeStartedAtRef.current = null;
+              }
+
+              const maxWaitMs = Math.max(
+                7_200_000,
+                ((data.sourceDuration ?? 7200) + 600) * 1000
               );
-            } else if (!data.preparing) {
-              setEtaSeconds(null);
-              transcodeStartedAtRef.current = null;
-            }
+              const stalledMs = Date.now() - lastProgressAt;
+              if (Date.now() - waitStarted > maxWaitMs) {
+                setPreparing(false);
+                setError(
+                  "Video preparation timed out. Try again or check server logs."
+                );
+                return;
+              }
+              if (
+                data.preparing &&
+                typeof data.progress === "number" &&
+                data.progress > 0 &&
+                stalledMs > 600_000
+              ) {
+                setPreparing(false);
+                setError("Transcode stalled. Restart server and try again.");
+                return;
+              }
 
-            const maxWaitMs = Math.max(
-              7_200_000,
-              ((data.sourceDuration ?? 7200) + 600) * 1000
-            );
-            const stalledMs = Date.now() - lastProgressAt;
-            if (Date.now() - waitStarted > maxWaitMs) {
-              setPreparing(false);
-              setError(
-                "Video preparation timed out. Try again or check server logs."
-              );
-              return;
+              delayMs = data.preparing ? 2500 : 5000;
             }
-            if (
-              data.preparing &&
-              typeof data.progress === "number" &&
-              data.progress > 0 &&
-              stalledMs > 600_000
-            ) {
-              setPreparing(false);
-              setError("Transcode stalled. Restart server and try again.");
-              return;
-            }
-
-            delayMs = data.preparing ? 2500 : 5000;
           }
         } catch {
           delayMs = 3000;
@@ -794,6 +802,12 @@ export function VideoPlayer({
               </p>
             )}
           </div>
+        </div>
+      ) : null}
+
+      {packagingHls && !preparing ? (
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 px-3 py-1.5 rounded-full glass-panel text-xs text-white/75 pointer-events-none">
+          Optimizing stream for iPad…
         </div>
       ) : null}
 
