@@ -6,5 +6,6 @@ node_modules/
 data/config.json
 cookies.txt
 urls.json
+src/download/
 *.pyc
 __pycache__/

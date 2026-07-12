@@ -107,10 +107,6 @@ Movies/
       ep01.mp4
 ```
 
-## Optional downloader tools
-
-The `src/download/` folder contains optional Python scripts for bulk downloading from external sites. They are **not** part of the web app and are not required to run BridgeCast.
-
 ## License
 
 MIT
