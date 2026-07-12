@@ -6,9 +6,9 @@ import {
   openHlsAssetStream,
 } from "@/serve/hls";
 import { ensureHlsStartup, hlsManager } from "@/serve/hls-manager";
+import { logHlsAssetServe } from "@/serve/playback-debug";
 import { isCategoryAccessible } from "@/lib/folder-lock";
 import { resolveCategoryDir } from "@/serve/library";
-import { needsRemux } from "@/serve/transcode";
 import { resolveVideoPath } from "@/serve/video";
 
 type HlsRequestParams = {
@@ -34,10 +34,6 @@ async function resolveVideo(cat: string, name: string) {
   const filePath = resolveVideoPath(decodeURIComponent(name), cat);
   if (!filePath) {
     return { error: Response.json({ error: "Not found" }, { status: 404 }) };
-  }
-
-  if (!needsRemux(filePath)) {
-    return { error: Response.json({ error: "HLS not required" }, { status: 400 }) };
   }
 
   return { filePath };
@@ -69,11 +65,16 @@ export async function handleHlsRequest(
   }
 
   const isPlaylist = file.endsWith(".m3u8");
+  const rebuild = request.nextUrl.searchParams.get("rebuild") === "1";
 
   if (isPlaylist) {
     hlsManager.registerViewer(filePath);
 
-    if (!status.ready) {
+    if (rebuild) {
+      hlsManager.invalidateAndRebuild(filePath);
+    }
+
+    if (!status.ready || rebuild) {
       try {
         await hlsManager.prepare(filePath);
       } catch (err) {
@@ -100,6 +101,7 @@ export async function handleHlsRequest(
   const baseUrl = buildBaseUrl(cat, name);
 
   if (isPlaylist) {
+    logHlsAssetServe(filePath, file, null);
     const playlist = hlsManager.getPlaylistContent(filePath, baseUrl);
     if (!playlist) {
       return Response.json({ error: "Playlist not found" }, { status: 404 });
@@ -120,6 +122,8 @@ export async function handleHlsRequest(
   if (!opened) {
     return Response.json({ error: "Segment not found" }, { status: 404 });
   }
+
+  logHlsAssetServe(filePath, file, range, opened.end - opened.start + 1);
 
   const etag = hlsAssetEtag(opened.stat);
   if (ifNoneMatch === etag) {

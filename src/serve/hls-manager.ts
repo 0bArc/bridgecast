@@ -9,6 +9,7 @@ import {
   removeHlsDir,
   rewriteHlsPlaylist,
 } from "@/serve/hls";
+import { logCleanup, logPlaybackDebug } from "@/serve/playback-debug";
 import {
   clearManifestHlsForFile,
   evictExpiredHlsCaches,
@@ -16,8 +17,7 @@ import {
   getManifestEntry,
   getTranscodeDir,
   HLS_CACHE_VERSION,
-  isIpadNative,
-  needsRemux,
+  HLS_NATIVE_MANIFEST,
   touchManifestHlsAccess,
   updateManifestHlsEntry,
   videoCacheHash,
@@ -77,6 +77,14 @@ function runFfmpeg(
       reject(new Error(stderr.trim() || `ffmpeg HLS exited with code ${code}`));
     });
   });
+}
+
+function manifestMp4Label(filePath: string, mp4Path: string): string {
+  const cached = findCachedMp4(filePath);
+  if (cached && path.resolve(cached) === path.resolve(mp4Path)) {
+    return path.basename(cached);
+  }
+  return HLS_NATIVE_MANIFEST;
 }
 
 class HlsManager {
@@ -141,8 +149,6 @@ class HlsManager {
   }
 
   resolveDir(filePath: string): string | null {
-    if (!needsRemux(filePath) || isIpadNative(filePath)) return null;
-
     const expected = this.hlsDirPath(filePath);
     const dirName = path.basename(expected);
     const entry = getManifestEntry(filePath);
@@ -152,22 +158,17 @@ class HlsManager {
       entry.hlsVersion !== HLS_CACHE_VERSION
     ) {
       removeHlsDir(expected);
+      logCleanup(`removed stale HLS cache ${path.basename(expected)} (version mismatch)`);
       clearManifestHlsForFile(filePath);
     } else if (hlsCacheValid(expected)) {
       if (!entry?.hlsDir) {
         const mp4 = findCachedMp4(filePath);
-        if (mp4) {
-          updateManifestHlsEntry(filePath, path.basename(mp4), dirName);
-        }
+        updateManifestHlsEntry(
+          filePath,
+          mp4 ? path.basename(mp4) : HLS_NATIVE_MANIFEST,
+          dirName
+        );
       }
-      return expected;
-    }
-
-    const mp4 = findCachedMp4(filePath);
-    if (!mp4) return null;
-
-    if (hlsCacheValid(expected)) {
-      updateManifestHlsEntry(filePath, path.basename(mp4), dirName);
       return expected;
     }
 
@@ -175,7 +176,6 @@ class HlsManager {
   }
 
   isReady(filePath: string): boolean {
-    if (!needsRemux(filePath) || isIpadNative(filePath)) return true;
     return this.resolveDir(filePath) !== null;
   }
 
@@ -220,16 +220,21 @@ class HlsManager {
   }
 
   prepareBackground(filePath: string): void {
-    if (!needsRemux(filePath) || isIpadNative(filePath)) return;
     if (this.isReady(filePath) || this.isPreparing(filePath)) return;
     void this.prepare(filePath).catch(() => undefined);
   }
 
-  async prepare(filePath: string): Promise<string> {
-    if (!needsRemux(filePath) || isIpadNative(filePath)) {
-      throw new Error("HLS not used for this file");
-    }
+  invalidateAndRebuild(filePath: string): void {
+    const expected = this.hlsDirPath(filePath);
+    logPlaybackDebug("hls-rebuild", `invalidate ${path.basename(expected)}`, filePath);
+    removeHlsDir(expected);
+    logCleanup(`removed HLS for rebuild ${path.basename(expected)}`);
+    clearManifestHlsForFile(filePath);
+    this.playlistCache.delete(this.key(filePath));
+    this.inFlight.delete(this.key(filePath));
+  }
 
+  async prepare(filePath: string): Promise<string> {
     const cached = this.resolveDir(filePath);
     if (cached) return cached;
 
@@ -254,24 +259,45 @@ class HlsManager {
 
     await this.acquirePackaging();
     try {
+      logPlaybackDebug(
+        "hls-packaging-start",
+        `packaging ${path.basename(hlsDir)}`,
+        filePath
+      );
       const stillReady = this.resolveDir(filePath);
       if (stillReady) return stillReady;
 
       await generateHlsFromMp4(mp4, hlsDir, runFfmpeg);
-      updateManifestHlsEntry(filePath, path.basename(mp4), path.basename(hlsDir));
+      updateManifestHlsEntry(
+        filePath,
+        manifestMp4Label(filePath, mp4),
+        path.basename(hlsDir)
+      );
       this.playlistCache.delete(this.key(filePath));
       touchManifestHlsAccess(filePath);
 
       if (!hlsCacheValid(hlsDir)) {
         throw new Error("HLS packaging finished but cache is invalid");
       }
+      logPlaybackDebug(
+        "hls-packaging-done",
+        `${path.basename(hlsDir)} ready`,
+        filePath
+      );
       return hlsDir;
+    } catch (err) {
+      logPlaybackDebug(
+        "hls-packaging-error",
+        err instanceof Error ? err.message : "packaging failed",
+        filePath
+      );
+      throw err;
     } finally {
       this.releasePackaging();
     }
   }
 
-  async ensureAfterMp4(filePath: string, mp4Path: string): Promise<string> {
+  async ensureAfterMp4(filePath: string, _mp4Path: string): Promise<string> {
     const existing = this.resolveDir(filePath);
     if (existing) return existing;
     return this.prepare(filePath);
@@ -309,7 +335,10 @@ let startupDone = false;
 export function ensureHlsStartup(): void {
   if (startupDone) return;
   startupDone = true;
-  cleanupStrayHlsArtifacts(process.cwd());
+  const stray = cleanupStrayHlsArtifacts(process.cwd());
+  if (stray > 0) {
+    logCleanup(`removed ${stray} stray HLS artifact(s) from project root`);
+  }
   hlsManager.evictIdleHlsCaches();
 }
 
@@ -327,4 +356,12 @@ export function getOrCreateHlsPlaylist(filePath: string): Promise<string> {
 
 export function isHlsInFlight(filePath: string): boolean {
   return hlsManager.isPreparing(filePath);
+}
+
+/** Queue HLS packaging for visible library titles (one-at-a-time server queue). */
+export function prewarmHls(filePaths: string[]): void {
+  for (const filePath of filePaths) {
+    if (!filePath || !fs.existsSync(filePath)) continue;
+    hlsManager.prepareBackground(filePath);
+  }
 }

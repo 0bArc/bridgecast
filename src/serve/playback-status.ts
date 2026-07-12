@@ -38,7 +38,7 @@ export function getPlaybackStatus(filePath: string): PlaybackStatus {
     void getOrCreatePlaybackFile(filePath).catch(() => undefined);
   }
 
-  if (ready && remux && !hlsStatus.ready && !hlsStatus.preparing) {
+  if (!hlsStatus.ready && !hlsStatus.preparing) {
     hlsManager.prepareBackground(filePath);
   }
 

@@ -6,6 +6,7 @@ import { resolveCategoryDir } from "@/serve/library";
 import {
   deleteCustomPoster,
   getOrCreateThumbnail,
+  posterContentType,
   resolvePosterPath,
   saveCustomPoster,
 } from "@/serve/poster";
@@ -41,10 +42,11 @@ async function servePoster(filePath: string): Promise<NextResponse> {
   const stream = fs.createReadStream(thumb);
   const stat = fs.statSync(thumb);
   const custom = thumb.includes("_custom.");
+  const contentType = posterContentType(thumb);
 
   return new NextResponse(stream as unknown as BodyInit, {
     headers: {
-      "Content-Type": "image/jpeg",
+      "Content-Type": contentType,
       "Cache-Control": custom
         ? "private, max-age=300"
         : "private, max-age=604800, immutable",

@@ -137,6 +137,55 @@ export function rewriteHlsPlaylist(content: string, baseUrl: string): string {
     .join("\n");
 }
 
+export type HlsInventory = {
+  init: string | null;
+  segments: string[];
+  segmentCount: number;
+  totalBytes: number;
+  playlistBytes: number;
+};
+
+export function listHlsInventory(hlsDir: string): HlsInventory | null {
+  if (!fs.existsSync(hlsDir)) return null;
+
+  let files: string[];
+  try {
+    files = fs.readdirSync(hlsDir);
+  } catch {
+    return null;
+  }
+
+  const segments = files.filter((f) => f.endsWith(".m4s")).sort();
+  const init = files.find((f) => f.endsWith(".mp4")) ?? null;
+
+  let totalBytes = 0;
+  for (const name of files) {
+    try {
+      totalBytes += fs.statSync(path.join(hlsDir, name)).size;
+    } catch {
+      /* skip */
+    }
+  }
+
+  let playlistBytes = 0;
+  const playlist = hlsPlaylistPath(hlsDir);
+  if (fs.existsSync(playlist)) {
+    try {
+      playlistBytes = fs.statSync(playlist).size;
+    } catch {
+      /* skip */
+    }
+  }
+
+  return {
+    init,
+    segments,
+    segmentCount: segments.length,
+    totalBytes,
+    playlistBytes,
+  };
+}
+
 export function removeHlsDir(hlsDir: string): void {
   if (!fs.existsSync(hlsDir)) return;
   try {

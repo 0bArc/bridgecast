@@ -6,6 +6,7 @@ import {
   getOrCreatePlaybackFile,
 } from "@/serve/transcode";
 import { createVideoStreamResponse, resolveVideoPath } from "@/serve/video";
+import { logMp4Serve } from "@/serve/playback-debug";
 
 export async function handleVideoRequest(
   request: NextRequest,
@@ -42,5 +43,6 @@ export async function handleVideoRequest(
 
   const range = request.headers.get("range");
   const isPreview = request.nextUrl.searchParams.get("preview") === "1";
+  logMp4Serve(filePath, streamPath, range);
   return createVideoStreamResponse(streamPath, range, isPreview);
 }

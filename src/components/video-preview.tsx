@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { isIosDevice } from "@/lib/client-device";
 import { acquirePreviewSlot } from "@/lib/preview-queue";
 
 type Props = {
@@ -14,46 +15,55 @@ const MAX_RETRIES = 8;
 export function VideoPreview({ posterSrc, title, eager = false }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   const releaseRef = useRef<(() => void) | null>(null);
-  const [visible, setVisible] = useState(eager);
-  const [canLoad, setCanLoad] = useState(eager);
+  const [mounted, setMounted] = useState(false);
+  const [shouldLoad, setShouldLoad] = useState(false);
   const [posterOk, setPosterOk] = useState(false);
   const [retry, setRetry] = useState(0);
 
   useEffect(() => {
-    if (eager) return;
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+
+    if (eager) {
+      setShouldLoad(true);
+      return;
+    }
+
     const el = rootRef.current;
     if (!el) return;
 
-    const scrollRoot =
-      el.closest("[data-library-scroll]") ??
-      el.closest("main") ??
-      null;
+    // iOS Safari: IntersectionObserver with overflow scroll root is unreliable.
+    const scrollRoot = isIosDevice()
+      ? null
+      : (el.closest("[data-library-scroll]") ?? el.closest("main") ?? null);
 
     const io = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
-          setVisible(true);
+          setShouldLoad(true);
           io.disconnect();
         }
       },
-      { root: scrollRoot, rootMargin: "120px", threshold: 0.01 }
+      { root: scrollRoot, rootMargin: "160px", threshold: 0.01 }
     );
 
     io.observe(el);
     return () => io.disconnect();
-  }, [eager]);
+  }, [mounted, eager]);
 
   useEffect(() => {
-    if (!visible || canLoad) return;
+    if (!shouldLoad) return;
 
     let cancelled = false;
-    acquirePreviewSlot().then((release) => {
+    void acquirePreviewSlot().then((release) => {
       if (cancelled) {
         release();
         return;
       }
       releaseRef.current = release;
-      setCanLoad(true);
     });
 
     return () => {
@@ -61,38 +71,25 @@ export function VideoPreview({ posterSrc, title, eager = false }: Props) {
       releaseRef.current?.();
       releaseRef.current = null;
     };
-  }, [visible, canLoad]);
+  }, [shouldLoad]);
 
   useEffect(() => {
-    if (!canLoad) return;
     setPosterOk(false);
+  }, [posterSrc, retry]);
 
-    const img = new Image();
-    img.decoding = "async";
-    img.onload = () => setPosterOk(true);
-    img.onerror = () => {
-      if (retry < MAX_RETRIES) {
-        window.setTimeout(() => setRetry((n) => n + 1), 1500);
-      }
-    };
-    img.src =
-      retry > 0 ? `${posterSrc}&_r=${retry}` : posterSrc;
-
-    return () => {
-      img.onload = null;
-      img.onerror = null;
-    };
-  }, [canLoad, posterSrc, retry]);
+  const imgSrc = retry > 0 ? `${posterSrc}&_r=${retry}` : posterSrc;
 
   return (
     <div
       ref={rootRef}
       className="relative aspect-video bg-base-300 overflow-hidden pointer-events-none select-none"
     >
-      <div className="absolute inset-0 flex items-center justify-center">
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
         <div
           className={`flex size-12 items-center justify-center rounded-full bg-white/90 text-black shadow-lg transition-all duration-300 ${
-            posterOk ? "opacity-0 scale-90 group-hover/card:opacity-100 group-hover/card:scale-100" : "opacity-100 scale-100"
+            posterOk
+              ? "opacity-70 scale-100 group-hover/card:opacity-100 group-hover/card:scale-105 group-active/card:opacity-100"
+              : "opacity-100 scale-100"
           }`}
         >
           <svg
@@ -111,16 +108,31 @@ export function VideoPreview({ posterSrc, title, eager = false }: Props) {
         </div>
       </div>
 
-      {canLoad && posterOk ? (
+      <div
+        className={`absolute inset-0 bg-base-300 animate-pulse transition-opacity duration-300 ${
+          mounted && shouldLoad && posterOk ? "opacity-0" : "opacity-100"
+        }`}
+        aria-hidden
+      />
+
+      {mounted && shouldLoad ? (
         <img
-          src={retry > 0 ? `${posterSrc}&_r=${retry}` : posterSrc}
+          key={imgSrc}
+          src={imgSrc}
           alt=""
+          loading={eager ? "eager" : "lazy"}
           decoding="async"
-          className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+          className={`absolute inset-0 h-full w-full object-cover pointer-events-none transition-opacity duration-300 ${
+            posterOk ? "opacity-100" : "opacity-0"
+          }`}
+          onLoad={() => setPosterOk(true)}
+          onError={() => {
+            if (retry < MAX_RETRIES) {
+              window.setTimeout(() => setRetry((n) => n + 1), 1500);
+            }
+          }}
         />
-      ) : (
-        <div className="absolute inset-0 bg-base-300 animate-pulse" />
-      )}
+      ) : null}
 
       <span className="sr-only">{title}</span>
     </div>

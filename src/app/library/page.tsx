@@ -5,13 +5,15 @@ import {
   movieGridClassForCount,
   FOLDER_GRID_CLASS,
 } from "@/components/library-sidebar";
-import { MediaCard } from "@/components/media-card";
-import { Navbar } from "@/components/navbar";
+import { MediaCard } from "@/components/media-card-loader";
+import { Navbar, NAVBAR_OFFSET_CLASS } from "@/components/navbar";
+import { NavIcon, categoryIcon } from "@/components/nav-icon";
 import { VideoSort } from "@/components/video-sort";
 import { isAdmin } from "@/lib/auth";
 import {
   getUnlockedFolders,
   filterSidebarFolders,
+  needsFolderUnlock,
 } from "@/lib/folder-lock";
 import { requireAuth, requireCategoryAccess } from "@/lib/guards";
 import {
@@ -22,6 +24,7 @@ import {
 } from "@/serve/library";
 import { getDisplayName } from "@/lib/display";
 import { prewarmDurations } from "@/serve/duration-cache";
+import { prewarmHls } from "@/serve/hls-manager";
 import { prewarmThumbnails } from "@/serve/poster";
 import { searchVideos, type SearchResult } from "@/serve/search";
 import { getVideoMeta } from "@/serve/video-meta";
@@ -109,9 +112,9 @@ export default async function LibraryPage({ searchParams }: Props) {
 
   const unlocked = await getUnlockedFolders();
   const topLevel = listTopLevel();
-  const subfolders = isSearch
-    ? []
-    : filterSidebarFolders(listSubfolders(activeCat));
+  const rawSubfolders = isSearch ? [] : listSubfolders(activeCat);
+  // Home: show all top-level folders (locked ones link to unlock). Inside a folder: show subfolders — access already checked.
+  const subfolders = isSearch ? [] : rawSubfolders;
   const sidebarTopLevel = filterSidebarFolders(topLevel);
 
   let videos: VideoItem[] = [];
@@ -129,6 +132,7 @@ export default async function LibraryPage({ searchParams }: Props) {
       .filter((p): p is string => !!p);
     prewarmThumbnails(paths);
     prewarmDurations(paths);
+    prewarmHls(paths.slice(0, 20));
   }
 
   const crumbs = breadcrumbParts(activeCat);
@@ -157,12 +161,24 @@ export default async function LibraryPage({ searchParams }: Props) {
           className="flex-1 min-w-0 overflow-y-auto scroll-smooth"
           data-library-scroll
         >
-          <div className="md:hidden overflow-x-auto border-b glass-panel sticky top-14 z-10 safe-x">
-            <div className="flex gap-2 py-3 w-max">
+          <div
+            className={`md:hidden overflow-x-auto border-b border-white/[0.06] glass-panel sticky ${NAVBAR_OFFSET_CLASS} z-10 safe-x`}
+          >
+            <div className="flex gap-2 py-2.5 w-max">
               <Link
                 href="/library"
-                className={`btn btn-sm rounded-full ${!activeCat && !isSearch ? "bg-white/15 text-white border-0" : "btn-ghost border-0"}`}
+                className={`btn btn-sm rounded-full min-h-9 gap-1.5 ${
+                  !activeCat && !isSearch
+                    ? "bg-white/12 text-white border border-white/10"
+                    : "btn-ghost border-0 text-white/70"
+                }`}
               >
+                <NavIcon
+                  name="home"
+                  className={
+                    !activeCat && !isSearch ? "text-white" : "text-white/70"
+                  }
+                />
                 Home
               </Link>
               {sidebarTopLevel.map((g) => {
@@ -170,14 +186,21 @@ export default async function LibraryPage({ searchParams }: Props) {
                 const active =
                   !isSearch &&
                   (activeCat === top || activeCat.startsWith(`${top}/`));
+                const icon = categoryIcon(g.label, g.id);
                 return (
                   <Link
                     key={g.id}
                     href={`/library?cat=${encodeURIComponent(top)}`}
-                    className={`btn btn-sm rounded-full ${
-                      active ? "bg-white/15 text-white border-0" : "btn-ghost border-0"
+                    className={`btn btn-sm rounded-full min-h-9 gap-1.5 ${
+                      active
+                        ? "bg-white/12 text-white border border-white/10"
+                        : "btn-ghost border-0 text-white/70"
                     }`}
                   >
+                    <NavIcon
+                      name={icon}
+                      className={active ? "text-white" : "text-white/70"}
+                    />
                     {g.label}
                   </Link>
                 );
@@ -187,20 +210,34 @@ export default async function LibraryPage({ searchParams }: Props) {
 
           <div className="p-4 lg:p-10 pb-[max(2rem,var(--safe-bottom))] w-full">
             {!isSearch && activeCat ? (
-              <div className="text-sm breadcrumbs mb-5 overflow-x-auto max-w-full text-base-content/45">
-                <ul className="flex-nowrap whitespace-nowrap">
+              <nav
+                aria-label="Breadcrumb"
+                className="mb-5 overflow-x-auto max-w-full"
+              >
+                <ol className="flex items-center gap-2 flex-nowrap whitespace-nowrap text-sm">
                   <li>
-                    <Link href="/library">Library</Link>
-                  </li>
-                {crumbs.map((c) => (
-                  <li key={c.id}>
-                    <Link href={`/library?cat=${encodeURIComponent(c.id)}`}>
-                      {getDisplayName(c.id)}
+                    <Link
+                      href="/library"
+                      className="text-white/85 hover:text-white transition-colors"
+                    >
+                      Library
                     </Link>
                   </li>
-                ))}
-                </ul>
-              </div>
+                  {crumbs.map((c) => (
+                    <li key={c.id} className="flex items-center gap-2">
+                      <span className="text-white/50 select-none" aria-hidden>
+                        –
+                      </span>
+                      <Link
+                        href={`/library?cat=${encodeURIComponent(c.id)}`}
+                        className="text-white/85 hover:text-white transition-colors"
+                      >
+                        {getDisplayName(c.id)}
+                      </Link>
+                    </li>
+                  ))}
+                </ol>
+              </nav>
             ) : null}
 
             <div className="flex items-end justify-between gap-3 mb-6 min-w-0">
@@ -225,23 +262,46 @@ export default async function LibraryPage({ searchParams }: Props) {
 
             {!isSearch && subfolders.length > 0 ? (
               <div className={`${FOLDER_GRID_CLASS} mb-8`}>
-                {subfolders.map((folder) => (
+                {subfolders.map((folder) => {
+                  const needsUnlock = needsFolderUnlock(folder.id, unlocked);
+                  const href = needsUnlock
+                    ? `/folder-unlock?cat=${encodeURIComponent(folder.id)}`
+                    : `/library?cat=${encodeURIComponent(folder.id)}`;
+                  return (
                     <Link
                       key={folder.id}
-                      href={`/library?cat=${encodeURIComponent(folder.id)}`}
+                      href={href}
                       prefetch={false}
-                      className="glass-card p-4 flex flex-col items-center text-center gap-2 hover:border-white/20 hover:bg-white/[0.06] transition-all duration-200 block touch-manipulation min-h-[8.5rem]"
+                      className="glass-card p-4 flex h-[10.5rem] flex-col items-center justify-center text-center gap-2 hover:border-white/20 hover:bg-white/[0.06] transition-all duration-200 touch-manipulation relative"
                     >
+                      {folder.locked && needsUnlock ? (
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 20 20"
+                          fill="currentColor"
+                          className="size-3.5 absolute top-2.5 right-2.5 text-base-content/35"
+                          aria-hidden
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                      ) : null}
                       <FolderGridIcon />
-                      <h3 className="font-semibold line-clamp-2 text-base leading-snug w-full">
-                        {folder.label}
-                      </h3>
-                      <span className="text-sm text-base-content/50">
+                      <div className="flex h-11 w-full items-center justify-center px-0.5">
+                        <h3 className="font-semibold line-clamp-2 text-base leading-snug">
+                          {folder.label}
+                        </h3>
+                      </div>
+                      <span className="text-sm text-base-content/50 shrink-0">
                         {folder.videoCount}{" "}
                         {folder.videoCount === 1 ? "video" : "videos"}
                       </span>
                     </Link>
-                  ))}
+                  );
+                })}
               </div>
             ) : null}
 

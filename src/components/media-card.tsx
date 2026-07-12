@@ -20,6 +20,8 @@ type Props = {
   eager?: boolean;
 };
 
+export type { Props as MediaCardProps };
+
 export function MediaCard({
   href,
   posterSrc,
@@ -118,48 +120,51 @@ export function MediaCard({
         openMenuRef.current = openAt;
       }}
     >
-      <Link
-        href={href}
-        prefetch={false}
-        className="block touch-manipulation h-full w-full outline-none"
-      >
-        <div className="relative overflow-hidden rounded-lg ring-1 ring-white/10 transition duration-300 group-hover/card:ring-white/25 group-hover/card:shadow-xl group-hover/card:shadow-black/50 group-focus-visible/card:ring-white/30">
-          <div className="transition duration-300 group-hover/card:scale-[1.03]">
-            <VideoPreview posterSrc={poster} title={title} eager={eager} />
+      <div className="relative h-full w-full">
+        <Link
+          href={href}
+          prefetch={false}
+          className="block touch-manipulation h-full w-full outline-none"
+        >
+          <div className="relative overflow-hidden rounded-lg ring-1 ring-white/10 transition duration-300 group-hover/card:ring-white/25 group-hover/card:shadow-xl group-hover/card:shadow-black/50 group-focus-visible/card:ring-white/30">
+            <div className="transition duration-300 group-hover/card:scale-[1.03]">
+              <VideoPreview posterSrc={poster} title={title} eager={eager} />
+            </div>
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent pointer-events-none opacity-80 group-hover/card:opacity-100 transition-opacity" />
           </div>
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent pointer-events-none opacity-80 group-hover/card:opacity-100 transition-opacity" />
-          {isAdmin ? (
-            <button
-              type="button"
-              className="btn btn-ghost btn-xs btn-circle absolute top-2 right-2 z-10 bg-black/40 text-white border-0 min-h-8 min-w-8 opacity-0 group-hover/card:opacity-100 group-focus-within/card:opacity-100"
-              aria-label="Media options"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                const rect = e.currentTarget.getBoundingClientRect();
-                openMenuRef.current(rect.left, rect.bottom);
-              }}
-            >
-              ⋮
-            </button>
-          ) : null}
-        </div>
 
-        <div className="pt-3 px-0.5 space-y-1.5">
-          <h3 className="text-lg lg:text-xl font-semibold leading-snug line-clamp-2 text-base-content/95">
-            {title}
-          </h3>
-          {metaParts.length > 0 ? (
-            <p className="text-sm text-base-content/55">{metaParts.join(" · ")}</p>
-          ) : null}
-          {categoryLabel ? (
-            <p className="text-sm text-base-content/45 truncate">{categoryLabel}</p>
-          ) : null}
-          {isAdmin ? (
-            <p className="text-xs text-base-content/40 tabular-nums">{sizeLabel}</p>
-          ) : null}
-        </div>
-      </Link>
+          <div className="pt-3 px-0.5 space-y-1.5">
+            <h3 className="text-lg lg:text-xl font-semibold leading-snug line-clamp-2 text-base-content/95">
+              {title}
+            </h3>
+            {metaParts.length > 0 ? (
+              <p className="text-sm text-base-content/55">{metaParts.join(" · ")}</p>
+            ) : null}
+            {categoryLabel ? (
+              <p className="text-sm text-base-content/45 truncate">{categoryLabel}</p>
+            ) : null}
+            {isAdmin ? (
+              <p className="text-xs text-base-content/40 tabular-nums">{sizeLabel}</p>
+            ) : null}
+          </div>
+        </Link>
+
+        {isAdmin ? (
+          <button
+            type="button"
+            className="btn btn-ghost btn-xs btn-circle absolute top-2 right-2 z-20 bg-black/40 text-white border-0 min-h-8 min-w-8 opacity-100 sm:opacity-0 sm:group-hover/card:opacity-100 sm:group-focus-within/card:opacity-100"
+            aria-label="Media options"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const rect = e.currentTarget.getBoundingClientRect();
+              openMenuRef.current(rect.left, rect.bottom);
+            }}
+          >
+            ⋮
+          </button>
+        ) : null}
+      </div>
       {isAdmin ? (
         <input
           ref={fileRef}

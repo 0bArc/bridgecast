@@ -7,7 +7,7 @@ import { resolveVideoPath } from "@/serve/video";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const MAX_RESULTS = 8;
+const MAX_RESULTS = 12;
 
 export async function GET(request: NextRequest) {
   const q = request.nextUrl.searchParams.get("q")?.trim() ?? "";

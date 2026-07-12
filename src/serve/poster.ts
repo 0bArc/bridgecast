@@ -53,6 +53,27 @@ export function resolvePosterPath(filePath: string): string | null {
   return null;
 }
 
+/** Sniff bytes so Safari gets the right Content-Type (custom uploads may be PNG/WebP). */
+export function posterContentType(thumbPath: string): string {
+  try {
+    const fd = fs.openSync(thumbPath, "r");
+    const buf = Buffer.alloc(12);
+    fs.readSync(fd, buf, 0, 12, 0);
+    fs.closeSync(fd);
+    if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e) return "image/png";
+    if (buf[0] === 0xff && buf[1] === 0xd8) return "image/jpeg";
+    if (
+      buf.toString("ascii", 0, 4) === "RIFF" &&
+      buf.toString("ascii", 8, 12) === "WEBP"
+    ) {
+      return "image/webp";
+    }
+  } catch {
+    /* fall through */
+  }
+  return "image/jpeg";
+}
+
 export function saveCustomPoster(filePath: string, data: Buffer): string {
   const out = customPosterPath(filePath);
   fs.writeFileSync(out, data);

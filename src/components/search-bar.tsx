@@ -134,9 +134,9 @@ export function SearchBar({ activeCat = "" }: Props) {
     open && query.trim().length >= 2 && (loading || results.length > 0 || total === 0);
 
   return (
-    <div ref={rootRef} className="relative flex-1 min-w-0 max-w-3xl">
+    <div ref={rootRef} className="relative w-full min-w-0">
       <form onSubmit={onSubmit}>
-        <label className="glass-input flex items-center gap-2 w-full h-9 px-3 rounded-lg shadow-none">
+        <label className="glass-input flex items-center gap-2 w-full h-10 lg:h-9 px-3 rounded-lg shadow-none text-base lg:text-sm">
           <svg
             xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 20 20"
@@ -154,7 +154,7 @@ export function SearchBar({ activeCat = "" }: Props) {
             ref={inputRef}
             type="text"
             enterKeyHint="search"
-            className="grow min-w-0 bg-transparent outline-none"
+            className="grow min-w-0 bg-transparent outline-none placeholder:text-base-content/35"
             placeholder="Search movies…"
             value={query}
             onChange={(e) => {
@@ -197,63 +197,70 @@ export function SearchBar({ activeCat = "" }: Props) {
         <div
           id={listId}
           role="listbox"
-          className="absolute left-0 right-0 top-[calc(100%+0.35rem)] z-50 rounded-xl glass-card overflow-hidden"
+          className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-50 rounded-xl glass-dropdown overflow-hidden min-h-[11rem] max-h-[min(78dvh,36rem)] lg:min-w-[22rem] xl:min-w-[26rem]"
         >
           {loading && results.length === 0 ? (
-            <div className="flex items-center justify-center gap-2 px-4 py-6 text-sm opacity-60">
+            <div className="flex items-center justify-center gap-2 px-5 py-10 text-sm text-base-content/60">
               <span className="loading loading-spinner loading-sm" />
               Searching…
             </div>
           ) : null}
 
           {!loading && results.length === 0 ? (
-            <div className="px-4 py-5 text-sm opacity-60 text-center">
+            <div className="px-5 py-10 text-sm text-base-content/60 text-center">
               No matches for &ldquo;{query.trim()}&rdquo;
             </div>
           ) : null}
 
           {results.length > 0 ? (
-            <ul className="max-h-[min(70dvh,22rem)] overflow-y-auto py-1">
-              {results.map((hit) => (
-                <li key={`${hit.categoryId}/${hit.name}`}>
-                  <Link
-                    href={hit.href}
-                    prefetch={false}
-                    role="option"
-                    className="flex items-center gap-3 px-3 py-2.5 hover:bg-white/5 active:bg-white/5 transition-colors"
-                    onClick={() => setOpen(false)}
-                  >
-                    <div className="relative size-14 shrink-0 rounded-md overflow-hidden bg-base-100">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={hit.poster}
-                        alt=""
-                        className="absolute inset-0 h-full w-full object-cover"
-                        loading="lazy"
-                        decoding="async"
-                      />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium truncate">{hit.title}</p>
-                      <p className="text-xs opacity-50 truncate">
-                        {[hit.year, hit.durationLabel, hit.categoryLabel]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </p>
-                    </div>
-                    <span className="text-[11px] opacity-40 tabular-nums shrink-0">
-                      {hit.sizeLabel}
-                    </span>
-                  </Link>
-                </li>
-              ))}
+            <ul className="max-h-[min(68dvh,30rem)] overflow-y-auto py-2 overscroll-contain divide-y divide-white/[0.06]">
+              {results.map((hit) => {
+                const meta = [hit.year, hit.durationLabel, hit.categoryLabel]
+                  .filter(Boolean)
+                  .join(" · ");
+                return (
+                  <li key={`${hit.categoryId}/${hit.name}`}>
+                    <Link
+                      href={hit.href}
+                      prefetch={false}
+                      role="option"
+                      className="flex items-center gap-4 px-4 py-3.5 hover:bg-white/[0.07] active:bg-white/[0.07] transition-colors"
+                      onClick={() => setOpen(false)}
+                    >
+                      <div className="relative w-[5.5rem] sm:w-24 aspect-video shrink-0 rounded-lg overflow-hidden bg-base-300 ring-1 ring-white/10">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={hit.poster}
+                          alt=""
+                          className="absolute inset-0 h-full w-full object-cover"
+                          loading="lazy"
+                          decoding="async"
+                        />
+                      </div>
+                      <div className="min-w-0 flex-1 flex flex-col justify-center gap-1">
+                        <p className="text-base font-semibold leading-snug line-clamp-2 text-white">
+                          {hit.title}
+                        </p>
+                        {meta ? (
+                          <p className="text-sm text-base-content/55 truncate">
+                            {meta}
+                          </p>
+                        ) : null}
+                      </div>
+                      <span className="text-xs text-base-content/45 tabular-nums shrink-0 hidden sm:block">
+                        {hit.sizeLabel}
+                      </span>
+                    </Link>
+                  </li>
+                );
+              })}
             </ul>
           ) : null}
 
           {total > results.length ? (
             <button
               type="button"
-              className="w-full border-t border-base-content/10 px-4 py-3 text-sm text-center hover:bg-base-100 transition-colors"
+              className="w-full border-t border-white/10 bg-base-200/40 px-5 py-3.5 text-sm text-center text-base-content/80 hover:bg-white/[0.06] hover:text-white transition-colors"
               onClick={() => goToFullSearch(query)}
             >
               See all {total} results
@@ -261,7 +268,7 @@ export function SearchBar({ activeCat = "" }: Props) {
           ) : total > 0 && results.length > 0 ? (
             <button
               type="button"
-              className="w-full border-t border-base-content/10 px-4 py-2.5 text-xs text-center opacity-60 hover:bg-base-100 hover:opacity-100 transition-colors"
+              className="w-full border-t border-white/10 bg-base-200/40 px-5 py-3 text-sm text-center text-base-content/55 hover:bg-white/[0.06] hover:text-white transition-colors"
               onClick={() => goToFullSearch(query)}
             >
               View in library

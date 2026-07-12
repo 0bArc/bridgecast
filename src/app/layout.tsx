@@ -5,10 +5,15 @@ import { SITE_NAME, SITE_TAGLINE } from "@/lib/site";
 export const metadata: Metadata = {
   title: SITE_NAME,
   description: SITE_TAGLINE,
+  applicationName: SITE_NAME,
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
     title: SITE_NAME,
+  },
+  icons: {
+    icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
+    apple: [{ url: "/apple-icon", type: "image/png" }],
   },
 };
 

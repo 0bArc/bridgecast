@@ -24,6 +24,15 @@ type Props = {
   progressApi?: string;
   /** Server-known resume point (avoids client fetch race before video loads). */
   initialResumeAt?: number | null;
+  onDebugUpdate?: (state: {
+    videoSrc: string;
+    hlsFallback: boolean;
+    hlsReadyState: boolean;
+    preferHlsPlayback: boolean;
+    preparing: boolean;
+    packagingHls: boolean;
+    isIos: boolean;
+  }) => void;
 };
 
 function formatTime(sec: number): string {
@@ -48,11 +57,14 @@ export function VideoPlayer({
   expectedDuration = null,
   progressApi,
   initialResumeAt = null,
+  onDebugUpdate,
 }: Props) {
   const [mounted, setMounted] = useState(false);
   const isIos = mounted && isIosDevice();
   const [hlsReadyState, setHlsReadyState] = useState(false);
-  const preferHlsPlayback = isIos && !!hlsSrc && hlsReadyState;
+  const [hlsFallback, setHlsFallback] = useState(false);
+  const preferHlsPlayback =
+    isIos && !!hlsSrc && hlsReadyState && !hlsFallback;
   const playbackSrc = preferHlsPlayback ? hlsSrc : src;
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -90,6 +102,9 @@ export function VideoPlayer({
   const pendingTimeRef = useRef(0);
   const timeRafRef = useRef<number | null>(null);
   const transcodeStartedAtRef = useRef<number | null>(null);
+  const hlsRetryRef = useRef(0);
+
+  const iosWantsHls = isIos && !!hlsSrc && !hlsFallback;
 
   const syncDuration = useCallback((v: HTMLVideoElement) => {
     const d = v.duration;
@@ -176,7 +191,34 @@ export function VideoPlayer({
   }, []);
 
   useEffect(() => {
+    if (!onDebugUpdate || !mounted) return;
+    onDebugUpdate({
+      videoSrc,
+      hlsFallback,
+      hlsReadyState,
+      preferHlsPlayback,
+      preparing,
+      packagingHls,
+      isIos,
+    });
+  }, [
+    onDebugUpdate,
+    mounted,
+    videoSrc,
+    hlsFallback,
+    hlsReadyState,
+    preferHlsPlayback,
+    preparing,
+    packagingHls,
+    isIos,
+  ]);
+
+  useEffect(() => {
     if (!mounted) return;
+
+    hlsRetryRef.current = 0;
+    setHlsFallback(false);
+    setHlsReadyState(false);
 
     const shouldWait = !!statusSrc;
     if (!shouldWait) {
@@ -214,23 +256,53 @@ export function VideoPlayer({
 
             const mp4Ready = Boolean(data.ready);
             const hlsReady = Boolean(data.hlsReady);
-            const iosWaitingHls =
-              isIos && !!hlsSrc && mp4Ready && !hlsReady;
+            const iosWaitingHls = iosWantsHls && mp4Ready && !hlsReady;
 
             setHlsReadyState(hlsReady);
             setPackagingHls(iosWaitingHls);
 
-            if (mp4Ready) {
-              setVideoSrc(isIos && hlsSrc && hlsReady ? hlsSrc : src);
-              setPreparing(false);
-              setPrepareProgress(100);
-              setError("");
+            if (data.error && iosWantsHls && hlsRetryRef.current < 1) {
+              hlsRetryRef.current++;
+              try {
+                await fetch(`${hlsSrc}${hlsSrc.includes("?") ? "&" : "?"}rebuild=1`, {
+                  credentials: "include",
+                });
+              } catch {
+                /* retry packaging */
+              }
+              delayMs = 2500;
+              await new Promise((r) => setTimeout(r, delayMs));
+              continue;
+            }
 
-              if (!iosWaitingHls) {
+            if (data.error && iosWantsHls && hlsRetryRef.current >= 1) {
+              setHlsFallback(true);
+              setVideoSrc(src);
+              setPreparing(false);
+              setPackagingHls(false);
+              setError("");
+              return;
+            }
+
+            if (mp4Ready) {
+              if (iosWantsHls) {
+                if (hlsReady) {
+                  setVideoSrc(hlsSrc);
+                  setPreparing(false);
+                  setPrepareProgress(100);
+                  setError("");
+                  return;
+                }
+                setVideoSrc("");
+                setPreparing(true);
+                delayMs = 2500;
+              } else {
+                setVideoSrc(src);
+                setPreparing(false);
+                setPrepareProgress(100);
+                setError("");
                 return;
               }
-
-              delayMs = 2500;
             } else {
               if (data.error && !data.preparing) {
                 setPreparing(false);
@@ -280,6 +352,13 @@ export function VideoPlayer({
               );
               const stalledMs = Date.now() - lastProgressAt;
               if (Date.now() - waitStarted > maxWaitMs) {
+                if (iosWantsHls && mp4Ready) {
+                  setHlsFallback(true);
+                  setVideoSrc(src);
+                  setPreparing(false);
+                  setError("");
+                  return;
+                }
                 setPreparing(false);
                 setError(
                   "Video preparation timed out. Try again or check server logs."
@@ -311,7 +390,7 @@ export function VideoPlayer({
     return () => {
       cancelled = true;
     };
-  }, [mounted, statusSrc, isIos, hlsSrc, src]);
+  }, [mounted, statusSrc, iosWantsHls, hlsSrc, src]);
 
   const saveProgress = useCallback(
     async (position: number, durationValue: number | null, clear = false) => {
@@ -778,7 +857,9 @@ export function VideoPlayer({
               ? "Packaging HLS for iPad… keep this page open."
               : needsPrepare
                 ? "Converting for iPad… keep this page open."
-                : "Preparing stream…"}
+                : iosWantsHls
+                  ? "Preparing HLS for iPad… keep this page open."
+                  : "Preparing stream…"}
           </p>
           <div className="w-full max-w-md space-y-2">
             <progress
@@ -901,6 +982,25 @@ export function VideoPlayer({
           }}
           onError={() => {
             if (preparing || !videoSrc) return;
+            if (preferHlsPlayback && hlsRetryRef.current < 1) {
+              hlsRetryRef.current++;
+              void fetch(`${hlsSrc}${hlsSrc.includes("?") ? "&" : "?"}rebuild=1`, {
+                credentials: "include",
+              }).then(() => {
+                setVideoSrc("");
+                setHlsReadyState(false);
+                setPreparing(true);
+                setPackagingHls(true);
+                setError("");
+              });
+              return;
+            }
+            if (iosWantsHls && !hlsFallback) {
+              setHlsFallback(true);
+              setVideoSrc(src);
+              setError("");
+              return;
+            }
             setError(
               preferHlsPlayback
                 ? "Playback failed. Wait for HLS packaging to finish, then tap play again."

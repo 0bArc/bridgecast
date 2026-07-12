@@ -3,6 +3,7 @@ import {
   probeAndCacheDuration,
 } from "@/serve/duration-cache";
 import { hlsCacheValid, removeHlsDir } from "@/serve/hls";
+import { logCleanup } from "@/serve/playback-debug";
 import { createHash } from "crypto";
 import { execFileSync, spawn } from "child_process";
 import fs from "fs";
@@ -261,11 +262,13 @@ function cleanupStaleParts(): void {
 
     if (name.includes(".part.mp4")) {
       safeUnlink(full);
+      logCleanup(`removed stale part mp4 ${name}`);
       continue;
     }
 
     if (/\.part\.\d+$/.test(name)) {
       removeHlsDir(full);
+      logCleanup(`removed stale HLS temp dir ${name}`);
     }
   }
 }
@@ -314,8 +317,10 @@ function cleanupInvalidOrphans(): void {
       if (name.endsWith(".part.mp4") || /\.part\.\d+$/.test(name)) {
         if (fs.existsSync(full) && fs.statSync(full).isDirectory()) {
           removeHlsDir(full);
+          logCleanup(`orphan HLS part dir removed ${name}`);
         } else if (!/^[a-f0-9]{20}\.part\.mp4$/.test(name)) {
           safeUnlink(full);
+          logCleanup(`orphan part mp4 removed ${name}`);
         }
         continue;
       }
@@ -330,12 +335,14 @@ function cleanupInvalidOrphans(): void {
       if (isDir) {
         if (/^[a-f0-9]{20}$/.test(name) && hlsCacheValid(full)) continue;
         removeHlsDir(full);
+        logCleanup(`orphan HLS dir removed ${name}`);
         continue;
       }
 
       if (name.endsWith(".mp4")) {
         if (/^[a-f0-9]{20}\.mp4$/.test(name)) continue;
         safeUnlink(full);
+        logCleanup(`orphan file removed ${name}`);
       }
     } catch {
       /* locked or gone — skip */
@@ -420,32 +427,19 @@ export function clearManifestHlsForFile(filePath: string): void {
   clearManifestHlsEntry(sourceKey(filePath));
 }
 
-/** Drop HLS when its MP4 cache is gone — same lifetime as MP4. */
+/** Sentinel in manifest.file when HLS was packaged from source (no remux cache). */
+export const HLS_NATIVE_MANIFEST = "@native";
+
+/** HLS kept until source changes (manifest key rotates); no idle eviction. */
 export function evictExpiredHlsCaches(
-  hasViewers: (key: string) => boolean,
-  isPreparing: (key: string) => boolean
+  _hasViewers: (key: string) => boolean,
+  _isPreparing: (key: string) => boolean
 ): number {
-  const manifest = readManifest();
-  let removed = 0;
+  return 0;
+}
 
-  for (const [key, entry] of Object.entries(manifest)) {
-    if (!entry.hlsDir) continue;
-    if (hasViewers(key) || isPreparing(key)) continue;
-
-    const mp4Path = path.join(TRANSCODE_DIR, entry.file);
-    const mp4Ok =
-      entry.version === TRANSCODE_VERSION &&
-      fs.existsSync(mp4Path) &&
-      fs.statSync(mp4Path).size > 0;
-    if (mp4Ok) continue;
-
-    const hlsDir = path.join(TRANSCODE_DIR, entry.hlsDir);
-    removeHlsDir(hlsDir);
-    clearManifestHlsEntry(key);
-    removed++;
-  }
-
-  return removed;
+export function isNativeHlsManifestEntry(fileField: string): boolean {
+  return fileField === HLS_NATIVE_MANIFEST || fileField.startsWith("@native");
 }
 
 export function isMp4TranscodeInFlight(filePath: string): boolean {
