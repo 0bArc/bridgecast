@@ -1,0 +1,10 @@
+node_modules/
+.next/
+.env
+.env.local
+.cache/
+data/config.json
+cookies.txt
+urls.json
+*.pyc
+__pycache__/

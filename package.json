@@ -1,0 +1,29 @@
+{
+  "name": "bridgecast",
+  "version": "1.0.0",
+  "description": "Stream your local video library on your network",
+  "license": "MIT",
+  "scripts": {
+    "dev": "next dev --hostname 0.0.0.0",
+    "build": "next build",
+    "start": "next start --hostname 0.0.0.0",
+    "download": "python src/download/download_all.py -i urls.json -c cookies.txt --no-cdp",
+    "thumbs": "node scripts/prewarm-thumbs.mjs"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "next": "^15.3.3",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.8",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^22.15.21",
+    "@types/react": "^19.1.4",
+    "@types/react-dom": "^19.1.5",
+    "daisyui": "^5.0.43",
+    "tailwindcss": "^4.1.8",
+    "typescript": "^5.8.3"
+  }
+}
